@@ -2,7 +2,7 @@
 
 Vital Sky is a cloud/DevOps project that simulates an ultra secure telemedicine platform on AWS!
 
-> **Important:** This is a simulation/student project!! It is not intended for real patient data, production healthcare use, or HIPAA compliance certification.
+> **Important:** This is a simulation/portfolio project!! It is also still a WIP. It is not intended for real patient data, production healthcare use, or HIPAA compliance certification.
 
 ## What this infra demonstrates
 
@@ -25,7 +25,49 @@ Vital Sky is a cloud/DevOps project that simulates an ultra secure telemedicine 
 - Local/mock AI mode so the project can be demonstrated without cloud AI spend
 - Health checks and structured JSON logging
 
-## Architecture
+
+
+## Whats Next?
+
+### Roadmap: Security Hardening
+
+VitalSky's core AWS foundation is in place: the RDS instance is private, and the database only accepts connections from the API's security group. The next phase turns it into a production-style, defense-in-depth deployment suitable for healthcare-style data. YAY!
+
+
+### Known gaps (in progress)
+- API routes don't yet enforce authentication or authorization
+- API security group currently allows inbound traffic on port 8000 from `0.0.0.0/0`
+- Database credentials are placeholders in Terraform rather than pulled from Secrets Manager
+- ECS/Fargate service definition is incomplete
+
+### Target architecture
+```
+Internet
+   ↓
+CloudFront + AWS WAF
+   ↓
+HTTPS Application Load Balancer
+   ↓
+Cognito authentication (JWT)
+   ↓
+ECS/Fargate API (private subnet)
+   ↓
+┌───────────┬───────────┬───────────┐
+RDS         S3          SQS
+(private)   (private)   (async)
+                          ↓
+                     AI worker → Amazon Bedrock
+```
+
+
+
+
+
+## Current Sctructure
+
+
+
+### Architecture
 
 ```text
                          Internet
@@ -226,7 +268,45 @@ cd services/telemedicine
 python -m pytest -q
 ```
 
+### Planned work
+
+**Identity & access**
+- [ ] Amazon Cognito login with JWT validation on every API route
+- [ ] Role-based access control (doctor, nurse, admin)
+- [ ] Per-patient authorization checks, so a valid token alone can't read any record
+- [ ] Audit logging of patient-record access
+
+**Network**
+- [ ] CloudFront and AWS WAF in front of an HTTPS Application Load Balancer
+- [ ] Restrict ECS ingress to the ALB security group only
+- [ ] Complete the ECS/Fargate service in private subnets
+- [ ] Only port 443 publicly exposed; no database or application ports reachable from the internet
+
+**Secrets & least privilege**
+- [ ] Move RDS credentials into AWS Secrets Manager, retrieved by the ECS task role
+- [ ] Scope ECS task IAM roles to only the actions each service needs (no wildcard permissions)
+
+**Data protection**
+- [ ] RDS encryption at rest, automated backups, and a Multi-AZ option
+- [ ] Private, encrypted S3 storage
+
+**Application hardening**
+- [ ] Input validation, request size limits, and rate limiting
+- [ ] Secure response headers
+
+**Monitoring & detection**
+- [ ] CloudWatch logging and alarms
+- [ ] GuardDuty and Security Hub
+
+**AI visit summaries**
+- [ ] Async pipeline: SQS queue → worker → Amazon Bedrock
+- [ ] Human review required before summaries are saved; no autonomous diagnosis
+
+**CI/CD**
+- [ ] GitHub Actions checks for infrastructure-as-code scanning, dependency and container scanning, and tests confirming protected routes reject unauthenticated requests
+
+**Goal:** defense-in-depth security using private AWS networking, WAF, IAM least privilege, managed secrets, authenticated API access, encrypted storage, security scanning, and centralized logging.
 
 
-For a real deployment pipeline, the next step would be GitHub OIDC → AWS IAM role → ECR → ECS deployment.
+
 
