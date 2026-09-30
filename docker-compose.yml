@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:16
+    container_name: vitalsky-db
+    environment:
+      POSTGRES_USER: vitalsky
+      POSTGRES_PASSWORD: vitalsky
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vitalsky"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:3
+    container_name: vitalsky-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,sqs,sns,secretsmanager
+      DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - localstack_data:/var/lib/localstack
+
+  redis:
+    image: redis:7-alpine
+    container_name: vitalsky-redis
+    ports:
+      - "6379:6379"
+
+  records:
+    build: ./services/records
+    container_name: vitalsky-records
+    env_file: .env
+    environment:
+      RECORDS_DB_URL: postgresql://vitalsky:vitalsky@db:5432/records
+      AWS_ENDPOINT_URL: http://localstack:4566
+    ports:
+      - "5001:5001"
+    depends_on:
+      db:
+        condition: service_healthy
+      localstack:
+        condition: service_started
+    volumes:
+      - ./services/records:/app
+
+  telemedicine:
+    build: ./services/telemedicine
+    container_name: vitalsky-telemedicine
+    environment:
+      DATABASE_URL: postgresql+psycopg://vitalsky:vitalsky@db:5432/telemed
+      AI_PROVIDER: mock
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # uncomment once you scaffold appointments (Step 2 from the previous message)
+  # appointments:
+  #   build: ./services/appointments
+  #   container_name: vitalsky-appointments
+  #   env_file: .env
+  #   environment:
+  #     APPOINTMENTS_DB_URL: postgresql://vitalsky:vitalsky@db:5432/appointments
+  #   ports:
+  #     - "5002:5002"
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+
+volumes:
+  pgdata:
+  localstack_data:
